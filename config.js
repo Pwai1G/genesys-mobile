@@ -10,7 +10,7 @@
   https://YOUR_GITHUB_USERNAME.github.io/genesys-mobile/
 */
 window.GENESYS_CONFIG = {
-  CLIENT_ID: "PUT_YOUR_GENESYS_OAUTH_CLIENT_ID_HERE",
+  CLIENT_ID: "tqFQFBnfCl3AJXmD-7hhz-Akh2V1lLbpD7LPXEbL9UlYMkVZ7FHoQquPCNOvWKZh2x6lFMa3eSU8XenBphSBvg",
   LOGIN_HOST: "https://login.mypurecloud.jp",
   API_HOST: "https://api.mypurecloud.jp",
 
