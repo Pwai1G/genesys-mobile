@@ -33,10 +33,11 @@
     .danger{background:var(--danger);color:#fff}
     .ok{background:var(--ok);color:#fff}
     .toolbar{display:flex;gap:8px;flex-wrap:wrap}
-    .userbox{font-size:13px;padding:9px 11px;border-radius:12px;background:#ecfdf5;border:1px solid #a7f3d0;display:none}
     .status{font-size:13px;font-weight:800;margin-top:9px}
     .note{font-size:12px;color:#1e3a8a;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:9px;margin-top:10px}
+    .warn{font-size:12px;color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:9px;margin-top:10px}
     .row{display:grid;grid-template-columns:1fr;gap:10px}
+    .tokenwrap{display:flex;gap:8px}.tokenwrap input{flex:1}
     .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
     .stat{padding:12px}.stat .n{font-size:22px;font-weight:900}.stat .l{font-size:12px;color:var(--muted)}
     .list{display:grid;gap:10px}.card{padding:12px}.card.selected{outline:3px solid rgba(37,99,235,.22)}
@@ -56,48 +57,62 @@
   <div class="header">
     <div>
       <div class="title">Genesys Active Conversations</div>
-      <div class="sub">Mobile Web • GitHub Pages • Genesys Cloud JP</div>
+      <div class="sub">Mobile Web • GitHub Pages • Bearer Token Mode</div>
     </div>
-    <button class="btn" id="logoutBtn" style="display:none">Logout</button>
+    <button id="clearTokenBtn" class="btn">Clear Token</button>
   </div>
 
   <div class="panel">
-    <div id="loginArea">
-      <button id="loginBtn" class="primary" style="width:100%">Login with Genesys Cloud</button>
-      <div class="note">
-        เว็บนี้ไม่รับ Genesys password และไม่เก็บ access token แบบถาวร Token จะอยู่เฉพาะ session ของ browser
-      </div>
+    <label>API Host</label>
+    <input id="apiHost" value="https://api.mypurecloud.jp" autocomplete="off">
+
+    <label>Bearer Token</label>
+    <div class="tokenwrap">
+      <input id="token" type="password" placeholder="Paste Genesys bearer token" autocomplete="off">
+      <button id="showTokenBtn" class="btn" type="button">👁</button>
     </div>
 
-    <div id="userBox" class="userbox"></div>
+    <div class="toolbar" style="margin-top:10px">
+      <button id="testBtn" class="ok">Test Token</button>
+      <button id="saveTokenBtn" class="btn">Use This Token</button>
+    </div>
 
-    <div id="controls" style="display:none;margin-top:8px">
-      <div class="row">
-        <div>
-          <label>Look back</label>
-          <select id="days">
-            <option value="1">1 day</option>
-            <option value="3">3 days</option>
-            <option value="7" selected>7 days</option>
-            <option value="14">14 days</option>
-            <option value="30">30 days</option>
-            <option value="31">31 days</option>
-          </select>
-        </div>
-        <div>
-          <label>Media</label>
-          <select id="media">
-            <option value="">All media</option>
-            <option value="voice">Voice only</option>
-          </select>
-        </div>
+    <div class="note">
+      Token จะถูกเก็บเฉพาะใน sessionStorage ของ browser และจะหายเมื่อปิด session/browser ตามพฤติกรรมของ browser
+    </div>
+
+    <div class="warn">
+      หาก GitHub Pages ถูก browser บล็อกตอนเรียก api.mypurecloud.jp และขึ้น Failed to fetch แสดงว่า endpoint ถูกจำกัดด้วย CORS ซึ่ง static HTML ไม่สามารถข้ามข้อจำกัดนี้ได้
+    </div>
+
+    <div id="status" class="status">Ready</div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <div>
+        <label>Look back</label>
+        <select id="days">
+          <option value="1">1 day</option>
+          <option value="3">3 days</option>
+          <option value="7" selected>7 days</option>
+          <option value="14">14 days</option>
+          <option value="30">30 days</option>
+          <option value="31">31 days</option>
+        </select>
       </div>
-      <div class="toolbar" style="margin-top:10px">
-        <button id="loadBtn" class="primary">Load Active</button>
-        <button id="refreshBtn" class="btn">Refresh</button>
+      <div>
+        <label>Media</label>
+        <select id="media">
+          <option value="">All media</option>
+          <option value="voice">Voice only</option>
+        </select>
       </div>
     </div>
-    <div id="status" class="status">Not logged in</div>
+    <div class="toolbar" style="margin-top:10px">
+      <button id="loadBtn" class="primary">Load Active</button>
+      <button id="refreshBtn" class="btn">Refresh</button>
+    </div>
   </div>
 
   <div class="stats">
@@ -114,7 +129,7 @@
     </div>
     <input id="search" style="margin-top:10px" placeholder="Search Conversation / Agent / Queue / Media">
     <div id="list" class="list" style="margin-top:10px">
-      <div class="empty">Login ก่อนเพื่อโหลด Active Conversations</div>
+      <div class="empty">ใส่ Bearer Token แล้วกด Load Active</div>
     </div>
   </div>
 
@@ -128,7 +143,6 @@
   <div><button id="disconnectBtn" class="danger" disabled>Disconnect Selected (0)</button></div>
 </div>
 
-<script src="./config.js"></script>
 <script src="./app.js"></script>
 </body>
 </html>

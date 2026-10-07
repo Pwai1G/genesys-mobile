@@ -1,85 +1,53 @@
-# Genesys Active Conversations - GitHub Pages
+# Genesys Mobile - Bearer Token Mode
 
-Mobile web for Genesys Cloud Japan region.
+Static GitHub Pages version for mobile.
 
-## 1. Create Genesys OAuth client
+No OAuth Client ID is used.
 
-In Genesys Cloud Admin, create an OAuth client for a browser / SPA using **Token Implicit Grant**.
+## Features
 
-Set the authorized redirect URI to the exact GitHub Pages URL you will use, for example:
+- Paste Genesys Bearer Token
+- Test Token
+- Load active conversations
+- Voice-only filter
+- Search
+- Select All
+- Disconnect selected conversations
+- Double confirmation
+- Session-only token storage
 
-    https://YOUR_GITHUB_USERNAME.github.io/genesys-mobile/
+## Upload to GitHub
 
-Copy the OAuth Client ID.
+Upload these files to the repository root:
 
-## 2. Edit config.js
+- index.html
+- app.js
+- manifest.json
+- icon.svg
+- .nojekyll
+- README.md
 
-Replace:
+Then enable GitHub Pages:
 
-    PUT_YOUR_GENESYS_OAUTH_CLIENT_ID_HERE
+Settings
+-> Pages
+-> Deploy from a branch
+-> main
+-> / (root)
 
-with your Genesys OAuth Client ID.
+## Usage
 
-Defaults:
-
-- Login: https://login.mypurecloud.jp
-- API: https://api.mypurecloud.jp
-
-## 3. Upload to GitHub
-
-Create a repository such as:
-
-    genesys-mobile
-
-Upload all files in this package to the repository root.
-
-## 4. Enable GitHub Pages
-
-GitHub repository:
-
-    Settings
-    -> Pages
-    -> Build and deployment
-    -> Deploy from a branch
-    -> Branch: main
-    -> Folder: / (root)
-    -> Save
-
-Your URL will normally be:
-
-    https://YOUR_GITHUB_USERNAME.github.io/genesys-mobile/
-
-The GitHub Pages URL must exactly match the authorized Redirect URI configured in the Genesys OAuth client.
-
-## 5. Use from mobile
-
-Open the GitHub Pages URL in Chrome/Safari.
-
-1. Tap Login with Genesys Cloud.
-2. Login on the real Genesys Cloud login page.
-3. Genesys redirects back to this web app with a user access token.
-4. Tap Load Active.
-5. Select interactions.
-6. Tap Disconnect Selected.
-
-The application does NOT collect Genesys username/password.
-
-The OAuth access token is stored only in browser sessionStorage, not localStorage.
-
-## Permissions
-
-The logged-in Genesys user still needs the Genesys Cloud permissions required to:
-
-- query conversation analytics
-- view relevant conversations/divisions
-- disconnect conversations
-
-If an API returns 403, review the role/permissions/division access of that user.
+1. Open GitHub Pages URL on mobile.
+2. Paste Bearer Token.
+3. Press Test Token.
+4. Press Load Active.
+5. Select conversations.
+6. Press Disconnect Selected.
 
 ## Important
 
-This is a static GitHub Pages app. Never put an OAuth client secret in these files.
+The token is stored only in browser sessionStorage.
 
-GitHub Pages is publicly reachable, so do not put passwords, client secrets, private API keys, or internal company data in this repository.
+Do not commit a Bearer Token into GitHub source code.
 
-For production enterprise use, consider using a private/internal hosting platform and your organization's security review.
+If the browser shows "Failed to fetch", that indicates browser CORS/network restrictions between GitHub Pages and api.mypurecloud.jp. Static JavaScript cannot bypass CORS by itself.

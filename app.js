@@ -1,4 +1,3 @@
-const C = window.GENESYS_CONFIG;
 const $ = id => document.getElementById(id);
 
 let conversations = [];
@@ -10,76 +9,75 @@ function log(msg) {
   $("log").textContent += `\n[${t}] ${msg}`;
   $("log").scrollTop = $("log").scrollHeight;
 }
-function status(msg) { $("status").textContent = msg; }
+
+function status(msg) {
+  $("status").textContent = msg;
+}
+
+function host() {
+  return $("apiHost").value.trim().replace(/\/+$/, "");
+}
+
+function inputToken() {
+  return $("token").value.trim().replace(/^Bearer\s+/i, "");
+}
+
+function storedToken() {
+  return sessionStorage.getItem("genesys_bearer_token") || "";
+}
+
+function token() {
+  return inputToken() || storedToken();
+}
+
+function saveToken() {
+  const t = inputToken();
+  if (!t) {
+    alert("กรุณาใส่ Bearer Token");
+    return;
+  }
+  sessionStorage.setItem("genesys_bearer_token", t);
+  status("Token saved for this browser session");
+  log("Bearer token saved to sessionStorage");
+}
+
+function clearToken() {
+  sessionStorage.removeItem("genesys_bearer_token");
+  $("token").value = "";
+  status("Token cleared");
+  log("Bearer token cleared");
+}
+
 function setBusy(v, msg) {
   busy = v;
-  ["loadBtn","refreshBtn","disconnectBtn"].forEach(id => {
+  ["testBtn","loadBtn","refreshBtn","disconnectBtn"].forEach(id => {
     if ($(id)) $(id).disabled = v || (id === "disconnectBtn" && selected.size === 0);
   });
   if (msg) status(msg);
 }
-function accessToken() { return sessionStorage.getItem("genesys_access_token") || ""; }
 
-function parseOAuthHash() {
-  if (!location.hash) return;
-  const p = new URLSearchParams(location.hash.substring(1));
-  const token = p.get("access_token");
-  const error = p.get("error");
-
-  if (error) {
-    const desc = p.get("error_description") || error;
-    log(`OAuth error: ${desc}`);
-    alert(`Genesys OAuth Error\n${desc}`);
+function validate() {
+  if (!token()) {
+    alert("กรุณาใส่ Bearer Token ก่อนใช้งาน");
+    return false;
   }
-
-  if (token) {
-    sessionStorage.setItem("genesys_access_token", token);
-    sessionStorage.setItem("genesys_token_time", String(Date.now()));
+  if (!/^https?:\/\//i.test(host())) {
+    alert("API Host ไม่ถูกต้อง");
+    return false;
   }
-
-  if (token || error) {
-    history.replaceState(null, "", location.pathname + location.search);
-  }
-}
-
-function login() {
-  if (!C.CLIENT_ID || C.CLIENT_ID.includes("PUT_YOUR")) {
-    alert("ยังไม่ได้ใส่ Genesys OAuth Client ID ใน config.js");
-    return;
-  }
-  const url = new URL(C.LOGIN_HOST + "/oauth/authorize");
-  url.searchParams.set("client_id", C.CLIENT_ID);
-  url.searchParams.set("response_type", "token");
-  url.searchParams.set("redirect_uri", C.REDIRECT_URI);
-  location.href = url.toString();
-}
-
-function logout() {
-  sessionStorage.removeItem("genesys_access_token");
-  sessionStorage.removeItem("genesys_token_time");
-  conversations = [];
-  selected.clear();
-  render();
-  showLoggedOut();
+  return true;
 }
 
 async function apiFetch(path, opts = {}) {
-  const token = accessToken();
-  if (!token) throw new Error("Not logged in");
-
-  const r = await fetch(C.API_HOST + path, {
+  const r = await fetch(host() + path, {
     ...opts,
     headers: {
-      "Authorization": `Bearer ${token}`,
+      "Authorization": `Bearer ${token()}`,
       "Accept": "application/json",
       "Content-Type": "application/json",
       ...(opts.headers || {})
     }
   });
-
-  if (r.status === 401) {
-    sessionStorage.removeItem("genesys_access_token");
-  }
 
   if (!r.ok) {
     let msg = "";
@@ -91,45 +89,34 @@ async function apiFetch(path, opts = {}) {
     }
     throw new Error(`HTTP ${r.status}: ${msg || r.statusText}`);
   }
+
   return r;
 }
 
-async function validateSession() {
-  if (!accessToken()) {
-    showLoggedOut();
-    return;
-  }
+async function testToken() {
+  if (!validate() || busy) return;
 
   try {
-    status("Checking Genesys session...");
+    setBusy(true, "Testing token...");
     const r = await apiFetch("/api/v2/users/me");
     const u = await r.json();
     const who = u.name || u.email || u.id || "Genesys User";
-    $("userBox").textContent = `🟢 Connected: ${who}`;
-    $("userBox").style.display = "block";
-    $("loginArea").style.display = "none";
-    $("controls").style.display = "block";
-    $("logoutBtn").style.display = "inline-block";
-    status("Connected");
-    log(`Connected as ${who}`);
+    sessionStorage.setItem("genesys_bearer_token", token());
+    status(`Token OK - ${who}`);
+    log(`Token OK - user: ${who}`);
+    alert(`Token OK\nConnected as: ${who}`);
   } catch (e) {
-    log(`Session error: ${e.message}`);
-    showLoggedOut();
-    if (e.message.includes("401")) alert("Genesys session หมดอายุ กรุณา Login ใหม่");
+    status("Token test failed");
+    log(`ERROR: ${e.message}`);
+    alert(e.message);
+  } finally {
+    setBusy(false);
   }
-}
-
-function showLoggedOut() {
-  $("loginArea").style.display = "block";
-  $("controls").style.display = "none";
-  $("userBox").style.display = "none";
-  $("logoutBtn").style.display = "none";
-  status("Not logged in");
-  $("disconnectBtn").disabled = true;
 }
 
 function getInfo(c) {
   const media = new Set(), names = [], queues = new Set();
+
   for (const p of (c.participants || [])) {
     const n = p.participantName || p.name;
     if (n) names.push(n);
@@ -137,6 +124,7 @@ function getInfo(c) {
 
     for (const s of (p.sessions || [])) {
       if (s.mediaType) media.add(s.mediaType);
+
       for (const seg of (s.segments || [])) {
         if (seg.queueId) queues.add(seg.queueId);
       }
@@ -155,10 +143,16 @@ function getInfo(c) {
 
 function ageText(start) {
   if (!start) return "-";
-  const seconds = Math.max(0, Math.floor((Date.now() - new Date(start).getTime()) / 1000));
+
+  const seconds = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(start).getTime()) / 1000)
+  );
+
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
+
   if (d) return `${d}d ${h}h ${m}m`;
   if (h) return `${h}h ${m}m`;
   return `${m}m`;
@@ -166,54 +160,81 @@ function ageText(start) {
 
 function esc(v) {
   return String(v ?? "").replace(/[&<>"']/g, c => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+    "&":"&amp;",
+    "<":"&lt;",
+    ">":"&gt;",
+    '"':"&quot;",
+    "'":"&#039;"
   })[c]);
 }
 
 function visibleConversations() {
   const q = $("search").value.trim().toLowerCase();
+
   if (!q) return conversations;
 
   return conversations.filter(c => {
     const i = getInfo(c);
-    return [i.id, i.direction, i.media.join(" "), i.names.join(" "), i.queues.join(" ")]
-      .join(" ").toLowerCase().includes(q);
+
+    return [
+      i.id,
+      i.direction,
+      i.media.join(" "),
+      i.names.join(" "),
+      i.queues.join(" ")
+    ].join(" ").toLowerCase().includes(q);
   });
 }
 
 function updateCounters() {
   $("totalCount").textContent = conversations.length;
   $("selectedCount").textContent = selected.size;
+
   $("voiceCount").textContent =
     conversations.filter(c => getInfo(c).media.includes("voice")).length;
+
   $("outboundCount").textContent =
     conversations.filter(c => getInfo(c).direction === "outbound").length;
-  $("disconnectBtn").textContent = `Disconnect Selected (${selected.size})`;
-  $("disconnectBtn").disabled = busy || selected.size === 0 || !accessToken();
+
+  $("disconnectBtn").textContent =
+    `Disconnect Selected (${selected.size})`;
+
+  $("disconnectBtn").disabled =
+    busy || selected.size === 0 || !token();
 }
 
 function render() {
   const items = visibleConversations();
 
   if (!items.length) {
-    $("list").innerHTML = `<div class="empty">${
-      conversations.length ? "ไม่พบรายการจาก Search" : "ไม่พบ Active Conversations"
-    }</div>`;
+    $("list").innerHTML =
+      `<div class="empty">${
+        conversations.length
+          ? "ไม่พบรายการจาก Search"
+          : "ไม่พบ Active Conversations"
+      }</div>`;
   } else {
     $("list").innerHTML = items.map(c => {
       const i = getInfo(c);
       const checked = selected.has(i.id);
+
       return `
         <div class="card ${checked ? "selected" : ""}">
           <div class="top">
-            <input class="check rowCheck" type="checkbox"
-              data-id="${esc(i.id)}" ${checked ? "checked" : ""}>
+            <input class="check rowCheck"
+                   type="checkbox"
+                   data-id="${esc(i.id)}"
+                   ${checked ? "checked" : ""}>
             <div class="grow">
               <div>
                 <span class="badge">${esc(i.direction)}</span>
-                ${i.media.map(x => `<span class="badge">${esc(x)}</span>`).join("")}
+                ${i.media.map(x =>
+                  `<span class="badge">${esc(x)}</span>`
+                ).join("")}
               </div>
+
               <div class="cid">${esc(i.id)}</div>
+
               <div class="meta">
                 <div><b>Age:</b> ${esc(ageText(i.start))}</div>
                 <div><b>Start:</b> <span class="muted">${esc(i.start || "-")}</span></div>
@@ -229,8 +250,10 @@ function render() {
   document.querySelectorAll(".rowCheck").forEach(ch => {
     ch.addEventListener("change", e => {
       const id = e.target.dataset.id;
+
       if (e.target.checked) selected.add(id);
       else selected.delete(id);
+
       render();
     });
   });
@@ -239,10 +262,12 @@ function render() {
 }
 
 async function loadActive() {
-  if (!accessToken() || busy) return;
+  if (!validate() || busy) return;
 
   try {
     setBusy(true, "Loading active conversations...");
+
+    sessionStorage.setItem("genesys_bearer_token", token());
 
     const days = Number($("days").value || 7);
     const now = new Date();
@@ -257,7 +282,10 @@ async function loadActive() {
         interval,
         order: "asc",
         orderBy: "conversationStart",
-        paging: { pageSize: 100, pageNumber: page },
+        paging: {
+          pageSize: 100,
+          pageNumber: page
+        },
         conversationFilters: [{
           type: "and",
           predicates: [{
@@ -280,83 +308,130 @@ async function loadActive() {
         }];
       }
 
-      const r = await apiFetch("/api/v2/analytics/conversations/details/query", {
-        method: "POST",
-        body: JSON.stringify(body)
-      });
+      const r = await apiFetch(
+        "/api/v2/analytics/conversations/details/query",
+        {
+          method: "POST",
+          body: JSON.stringify(body)
+        }
+      );
+
       const d = await r.json();
       const batch = d.conversations || [];
+
       all.push(...batch);
 
       if (
         batch.length < 100 ||
         (Number.isInteger(d.totalHits) && all.length >= d.totalHits) ||
         page >= 100
-      ) break;
+      ) {
+        break;
+      }
 
       page++;
     }
 
     conversations = all.filter(c => !c.conversationEnd);
     selected.clear();
+
     render();
+
     log(`Loaded ${conversations.length} active conversation(s).`);
     status(`Loaded ${conversations.length} active conversation(s)`);
+
   } catch (e) {
     log(`Load failed: ${e.message}`);
-    alert(e.message);
     status("Load failed");
-    if (e.message.includes("401")) showLoggedOut();
+    alert(e.message);
   } finally {
     setBusy(false);
   }
 }
 
 async function disconnectSelected() {
+  if (!validate() || busy) return;
+
   const ids = [...selected];
-  if (!ids.length || busy) return;
+
+  if (!ids.length) {
+    alert("กรุณาเลือก Conversation ที่ต้องการ Disconnect");
+    return;
+  }
 
   if (!confirm(
     `คุณกำลังจะ Force Disconnect ${ids.length} interaction(s).\n\n` +
     `สายจะถูกตัดทันที ต้องการดำเนินการต่อหรือไม่?`
   )) return;
 
-  if (!confirm("ยืนยันอีกครั้ง: Disconnect interaction ที่เลือกทั้งหมด?")) return;
+  if (!confirm(
+    "ยืนยันอีกครั้ง: Disconnect interaction ที่เลือกทั้งหมด?"
+  )) return;
 
-  setBusy(true, `Disconnecting ${ids.length} conversation(s)...`);
+  setBusy(
+    true,
+    `Disconnecting ${ids.length} conversation(s)...`
+  );
 
   let success = 0;
   const failed = [];
 
   for (let i = 0; i < ids.length; i++) {
     const cid = ids[i];
+
     try {
-      await apiFetch(`/api/v2/conversations/${encodeURIComponent(cid)}/disconnect`, {
-        method: "POST"
-      });
+      await apiFetch(
+        `/api/v2/conversations/${encodeURIComponent(cid)}/disconnect`,
+        { method: "POST" }
+      );
+
       success++;
       log(`DISCONNECTED: ${cid}`);
+
     } catch (e) {
       failed.push([cid, e.message]);
       log(`FAILED: ${cid} - ${e.message}`);
     }
-    status(`Disconnecting ${i + 1}/${ids.length}...`);
+
+    status(
+      `Disconnecting ${i + 1}/${ids.length}...`
+    );
   }
 
-  setBusy(false, `Completed: ${success} success, ${failed.length} failed`);
-  alert(`Disconnect Completed\nSuccess: ${success}\nFailed: ${failed.length}`);
+  setBusy(
+    false,
+    `Completed: ${success} success, ${failed.length} failed`
+  );
+
+  alert(
+    `Disconnect Completed\n` +
+    `Success: ${success}\n` +
+    `Failed: ${failed.length}`
+  );
+
   await loadActive();
 }
 
-$("loginBtn").onclick = login;
-$("logoutBtn").onclick = logout;
+$("showTokenBtn").onclick = () => {
+  $("token").type =
+    $("token").type === "password"
+      ? "text"
+      : "password";
+};
+
+$("saveTokenBtn").onclick = saveToken;
+$("clearTokenBtn").onclick = clearToken;
+$("testBtn").onclick = testToken;
 $("loadBtn").onclick = loadActive;
 $("refreshBtn").onclick = loadActive;
 $("disconnectBtn").onclick = disconnectSelected;
+
 $("search").addEventListener("input", render);
 
 $("selectAllBtn").onclick = () => {
-  visibleConversations().forEach(c => selected.add(c.conversationId));
+  visibleConversations().forEach(
+    c => selected.add(c.conversationId)
+  );
   render();
 };
 
@@ -365,6 +440,11 @@ $("clearBtn").onclick = () => {
   render();
 };
 
-parseOAuthHash();
-validateSession();
+const existing = storedToken();
+
+if (existing) {
+  $("token").value = existing;
+  status("Bearer Token loaded from this browser session");
+}
+
 render();
